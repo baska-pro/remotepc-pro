@@ -1,6 +1,6 @@
 # Installation
 
-## Recommended
+## Recommended installation
 
 Open PowerShell as the Windows user that will run RemotePC Pro:
 
@@ -17,16 +17,21 @@ The installer creates:
 %LOCALAPPDATA%\RemotePCPro
 ```
 
-It does not silently create a Scheduled Task.
+It creates a Python virtual environment and installs the dependencies from `requirements.txt`. It does **not** create a Scheduled Task, service, or hidden startup entry.
 
-After installation, edit:
+## Configure
+
+Edit:
 
 ```text
 %LOCALAPPDATA%\RemotePCPro\RemotePC.config.json
 ```
 
-Then launch the application from PowerShell or a shortcut you create yourself.
+Set at least `bot_token` and `allowed_chat_ids`, then run:
 
-## Optional dependencies
+```powershell
+%LOCALAPPDATA%\Programs\RemotePCPro\.venv\Scripts\python.exe `
+  %LOCALAPPDATA%\Programs\RemotePCPro\remotepc_pro.py
+```
 
-FFmpeg and NirCmd are not bundled. Install them separately and configure their paths if you intentionally use features that depend on them.
+The dashboard listens on `127.0.0.1:8765` by default.
