@@ -4,15 +4,20 @@
 
 RemotePC Pro is intended only for Windows computers the operator owns or is explicitly authorized to manage.
 
-## Important boundaries
+## Public edition boundary
+
+The public edition intentionally excludes arbitrary shell/command execution, file browsing/transfer, screenshot/webcam/audio capture, keyboard/mouse injection, credential collection, and hidden persistence.
+
+Available remote actions are limited to authenticated status access plus lock, restart, and shutdown. Destructive Telegram power actions require an explicit `confirm` argument.
+
+## Important rules
 
 - Treat the Telegram bot token as a password.
-- Keep the allowlist limited to trusted Telegram accounts.
-- Do not expose the dashboard directly to the public internet.
-- Prefer `127.0.0.1`, a private network/VPN, or a correctly configured TLS reverse proxy.
-- Keep `advanced_commands` and `web_file_manager` disabled unless there is a specific, authorized need.
-- Never commit `RemotePC.config.json`, `.env`, logs, screenshots, recordings, session data, or third-party binaries.
+- Keep `allowed_chat_ids` limited to trusted Telegram accounts.
+- Keep the dashboard on `127.0.0.1` unless you deliberately deploy it behind a properly secured private network/VPN or TLS reverse proxy.
+- Never commit `RemotePC.config.json`, `.env`, logs, tokens, Chat IDs, or other private host data.
+- Review configuration and dependency changes before deploying updates.
 
 ## Reporting
 
-Do not publish exploitable security details, credentials, or private host information in a public issue. Report security concerns privately to the repository owner.
+Do not publish credentials, private host information, or exploitable security details in a public issue. Report security concerns privately to the repository owner.
