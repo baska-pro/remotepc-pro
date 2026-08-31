@@ -1,0 +1,158 @@
+nts for x in protected)
+    except Exception:
+        return True
+
+
+def list_directory(path_value: str):
+    path = normalize_path(path_value)
+    if not path.is_dir():
+        raise NotADirectoryError(str(path))
+    rows = []
+    try:
+        for item in path.iterdir():
+            try:
+                st = item.stat()
+                rows.append({
+                    "name": item.name,
+                    "path": str(item),
+                    "is_dir": item.is_dir(),
+                    "size": 0 if item.is_dir() else st.st_size,
+                    "size_human": "—" if item.is_dir() else human_size(st.st_size),
+                    "modified": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                })
+            except Exception:
+                continue
+    except PermissionError:
+        raise
+    rows.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+    parent = str(path.parent) if path.parent != path else ""
+    return {"path": str(path), "parent": parent, "items": rows[:1000]}
+
+
+def _record_command(kind: str, duration: int, region=None):
+    if not FFMPEG_PATH:
+        raise RuntimeError("ffmpeg.exe tidak ditemukan")
+    max_seconds = int(CONFIG.get("features", {}).get("max_record_seconds", 600))
+    duration = max(1, min(int(duration), max_seconds))
+    stamp = int(time.time())
+    if kind == "screen":
+        output = Path(TEMP_DIR) / f"screen_record_{stamp}.mp4"
+        cmd = [FFMPEG_PATH, "-y", "-hide_banner", "-loglevel", "error", "-f", "gdigrab",
+               "-framerate", "30", "-i", "desktop", "-t", str(duration),
+               "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "28", str(output)]
+    elif kind == "webcam":
+        output = Path(TEMP_DIR) / f"webcam_record_{stamp}.mp4"
+        device = get_webcam_device()
+        cmd = [FFMPEG_PATH, "-y", "-hide_banner", "-loglevel", "error", "-f", "dshow",
+               "-i", f"video={device}", "-t", str(duration), "-c:v", "libx264",
+               "-preset", "veryfast", "-crf", "28", str(output)]
+    elif kind == "area":
+        if not region or len(region) != 4:
+            raise ValueError("Region harus x,y,width,height")
+        x, y, width, height = [max(0, int(v)) for v in region]
+        if width < 10 or height < 10:
+            raise ValueError("Ukuran area terlalu kecil")
+        output = Path(TEMP_DIR) / f"area_record_{stamp}.mp4"
+        cmd = [FFMPEG_PATH, "-y", "-hide_banner", "-loglevel", "error", "-f", "gdigrab",
+               "-framerate", "25", "-offset_x", str(x), "-offset_y", str(y),
+               "-video_size", f"{width}x{height}", "-i", "desktop", "-t", str(duration),
+               "-c:v", "libx264", "-preset", "veryfast", "-crf", "28", str(output)]
+    else:
+        raise ValueError("Jenis rekaman tidak valid")
+    return cmd, output, duration
+
+
+def start_recording(kind: str, duration: int, region=None, chat_id=None):
+    cmd, output, duration = _record_command(kind, duration, region)
+    def worker():
+        try:
+            LOGGER.info("Recording started kind=%s duration=%s output=%s", kind, duration, output)
+            result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                                    creationflags=CREATE_NO_WINDOW, timeout=duration + 45)
+            if result.returncode == 0 and output.exists() and output.stat().st_size > 0:
+                send_telegram_file(str(output), f"🎥 Rekaman {kind} ({duration} detik)", chat_id=chat_id)
+            else:
+                send_telegram_message(f"❌ Rekaman {kind} gagal: {(result.stderr or '')[-400:]}", chat_id)
+        except Exception as exc:
+            LOGGER.exception("Recording worker failed")
+            send_telegram_message(f"❌ Rekaman {kind} gagal: {exc}", chat_id)
+        finally:
+            try:
+                if output.exists():
+                    output.unlink()
+            except Exception:
+                pass
+    threading.Thread(target=worker, name=f"record-{kind}", daemon=True).start()
+    return str(output), duration
+
+
+def install_startup_task():
+    if os.name != "nt":
+        return False, "Task Scheduler hanya tersedia di Windows."
+    task_name = str(CONFIG.get("startup_task_name", "RemotePC Pro"))
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    exe = str(pythonw if pythonw.exists() else Path(sys.executable))
+    script = str(Path(__file__).resolve())
+    command = f'"{exe}" "{script}"'
+    args = ["schtasks", "/Create", "/F", "/SC", "ONLOGON", "/TN", task_name, "/TR", command]
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                            creationflags=CREATE_NO_WINDOW)
+    return result.returncode == 0, (result.stdout or "").strip()
+
+
+def uninstall_startup_task():
+    task_name = str(CONFIG.get("startup_task_name", "RemotePC Pro"))
+    result = subprocess.run(["schtasks", "/Delete", "/F", "/TN", task_name],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                            creationflags=CREATE_NO_WINDOW)
+    return result.returncode == 0, (result.stdout or "").strip()
+
+
+def startup_task_status():
+    task_name = str(CONFIG.get("startup_task_name", "RemotePC Pro"))
+    result = subprocess.run(["schtasks", "/Query", "/TN", task_name, "/FO", "LIST", "/V"],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                            creationflags=CREATE_NO_WINDOW)
+    return result.returncode == 0, (result.stdout or "").strip()
+
+
+_SINGLE_INSTANCE_HANDLE = None
+
+def acquire_single_instance():
+    global _SINGLE_INSTANCE_HANDLE
+    if os.name != "nt":
+        return True
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        name = "Local\\RemotePCPro_" + hashlib.sha1(str(Path(__file__).resolve()).encode("utf-8")).hexdigest()[:16]
+        handle = kernel32.CreateMutexW(None, False, name)
+        if not handle:
+            return True
+        if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+            kernel32.CloseHandle(handle)
+            return False
+        _SINGLE_INSTANCE_HANDLE = handle
+        return True
+    except Exception:
+        LOGGER.exception("Single instance mutex failed")
+        return True
+
+
+# ========== KEYBOARD MENU ==========
+
+def main_menu_keyboard():
+    keyboard = [
+    [
+         InlineKeyboardButton(f"{EMOJI['power']} Power Control", callback_data='power_menu'),
+         InlineKeyboardButton(f"{EMOJI['file']} File & Explorer", callback_data='file_menu')
+        ],
+        [
+         InlineKeyboardButton(f"{EMOJI['utility']} Utilitas", callback_data='utility_menu'),
+         InlineKeyboardButton(f"{EMOJI['record']} Perekaman", callback_data='record_menu')
+        ],
+        [
+         InlineKeyboardButton(f"{EMOJI['mouse']} Mouse Control", callback_data='mouse_menu'),
+         InlineKeyboardButton(f"{EMOJI['info']} Info Sistem", callback_data='info_menu')
+        ],
+        [
