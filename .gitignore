@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Runtime / credentials
+RemotePC.config.json
+*.config.local.json
+.env
+.env.*
+*.log
+*.lock
+*.pid
+state.json
+temp/
+logs/
+
+# Local binaries / generated files
+bin/
+dist/
+build/
+*.zip
+*.exe
+*.dll
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test/cache
+.pytest_cache/
+.coverage
+htmlcov/
