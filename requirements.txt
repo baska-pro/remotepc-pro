@@ -1,0 +1,9 @@
+requests>=2.31,<3
+psutil>=5.9,<8
+pyperclip>=1.9,<2
+Send2Trash>=1.8,<2
+python-telegram-bot>=22.6,<23
+Flask>=3.1,<4
+waitress>=3,<4
+Pillow>=10,<13
+pywin32>=306; platform_system == "Windows"
