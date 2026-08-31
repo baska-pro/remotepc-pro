@@ -20,16 +20,6 @@ foreach ($file in $files) {
     Copy-Item -Force (Join-Path $ProjectRoot $file) (Join-Path $InstallDir $file)
 }
 
-$SourceDir = Join-Path $ProjectRoot "src"
-$InstalledSourceDir = Join-Path $InstallDir "src"
-if (-not (Test-Path -LiteralPath $SourceDir -PathType Container)) {
-    throw "Source directory missing: $SourceDir"
-}
-if (Test-Path -LiteralPath $InstalledSourceDir) {
-    Remove-Item -Recurse -Force $InstalledSourceDir
-}
-Copy-Item -Recurse -Force $SourceDir $InstalledSourceDir
-
 $ConfigPath = Join-Path $StateDir "RemotePC.config.json"
 if (-not (Test-Path $ConfigPath)) {
     Copy-Item (Join-Path $ProjectRoot "RemotePC.config.example.json") $ConfigPath
@@ -44,5 +34,5 @@ $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 Write-Host ""
 Write-Host "Installed."
 Write-Host "Config: $ConfigPath"
-Write-Host "Edit the config before starting RemotePC Pro."
+Write-Host "Edit bot_token and allowed_chat_ids before starting RemotePC Pro."
 Write-Host "No Scheduled Task or hidden startup entry was created."
