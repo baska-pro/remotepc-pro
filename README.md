@@ -7,48 +7,32 @@
 
 > [English documentation](README.en.md)
 
-**RemotePC Pro v2.0.0** adalah aplikasi administrasi PC Windows milik sendiri melalui Telegram dan dashboard web dengan autentikasi Chat ID + OTP.
+**RemotePC Pro v2.0.0** adalah utilitas owner-only untuk memantau PC Windows melalui Telegram dan dashboard web, dengan kontrol power terbatas serta autentikasi Chat ID + OTP Telegram.
 
-> Gunakan hanya pada PC yang Anda miliki atau kelola dengan izin eksplisit. Project ini bukan mekanisme keamanan Windows dan bukan pengganti RDP, Windows AppLocker, WDAC, Group Policy, VPN, atau endpoint-management enterprise.
+> Gunakan hanya pada PC yang Anda miliki atau kelola dengan izin eksplisit. RemotePC Pro bukan pengganti RDP, VPN, WDAC, Group Policy, atau endpoint-management enterprise.
 
-## Fitur utama
+## Fitur
 
 - Telegram bot dengan allowlist Chat ID.
-- Dashboard web dengan login Chat ID + OTP Telegram.
-- CSRF protection, session cookie, rate limiting, dan security headers.
-- Status CPU, RAM, disk, baterai, network, uptime, dan proses.
-- Kontrol power Windows, volume, popup, TTS, keyboard, mouse, dan utilitas lokal.
-- Dashboard dan bot menyediakan sejumlah fungsi administrasi tingkat lanjut pada instalasi yang mengaktifkannya.
-- Rotating log dan single-instance mutex.
-- Dukungan FFmpeg/NirCmd opsional.
-- Task Scheduler tersedia sebagai tindakan **manual/eksplisit**, bukan diaktifkan otomatis oleh installer repository.
-- Config runtime dan credential disimpan di `%LOCALAPPDATA%\RemotePCPro`, bukan di repository.
+- Dashboard web dengan Chat ID + OTP Telegram.
+- CSRF protection, session security, rate limiting, dan security headers.
+- Status CPU, RAM, disk, hostname, dan uptime.
+- Kontrol terbatas: lock Windows, restart, dan shutdown.
+- Restart/shutdown dari Telegram memerlukan kata `confirm`; dashboard meminta konfirmasi browser.
+- Dashboard bind ke `127.0.0.1` secara default.
+- Config runtime disimpan di `%LOCALAPPDATA%\RemotePCPro`.
+- Tidak membuat Scheduled Task atau hidden startup entry saat instalasi.
+- CI memeriksa syntax, versi, credential leak, repository hygiene, dan capability surface.
 
-## Default keamanan repository publik
+## Yang sengaja tidak disertakan
 
-Paket GitHub ini memakai default yang lebih konservatif daripada file kerja awal:
-
-```json
-{
-  "dashboard": {
-    "host": "127.0.0.1"
-  },
-  "features": {
-    "advanced_commands": false,
-    "web_file_manager": false
-  }
-}
-```
-
-Jangan membuka dashboard langsung ke internet. Gunakan jaringan privat/VPN atau reverse proxy yang dikonfigurasi dengan TLS dan kontrol akses yang sesuai.
+Public edition **tidak menyediakan** arbitrary shell/command execution, file manager atau transfer file, screenshot/webcam/audio capture, keyboard/mouse injection, credential collection, maupun hidden persistence.
 
 ## Persyaratan
 
 - Windows 10/11.
 - Python 3.11+.
-- Telegram bot jika kontrol Telegram digunakan.
-- FFmpeg hanya jika fitur media yang memang Anda aktifkan memerlukannya.
-- NirCmd bersifat opsional.
+- Telegram bot untuk kontrol Telegram dan OTP dashboard.
 
 ## Instalasi
 
@@ -58,28 +42,26 @@ cd remotepc-pro
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Installer:
-- membuat virtual environment;
-- memasang dependency;
-- menyalin aplikasi ke `%LOCALAPPDATA%\Programs\RemotePCPro`;
-- membuat config awal dari contoh;
-- **tidak** membuat startup persistence otomatis.
-
-Lihat [docs/INSTALLATION.md](docs/INSTALLATION.md).
+Installer membuat virtual environment, memasang dependency, menyalin aplikasi ke `%LOCALAPPDATA%\Programs\RemotePCPro`, dan membuat config awal tanpa credential.
 
 ## Konfigurasi
 
-Edit file:
+Edit:
 
 ```text
 %LOCALAPPDATA%\RemotePCPro\RemotePC.config.json
 ```
 
-Minimal isi `bot_token` dan `allowed_chat_ids`. Jangan commit file config runtime.
+Isi minimal:
 
-Contoh aman tersedia di [`RemotePC.config.example.json`](RemotePC.config.example.json).
+```json
+{
+  "bot_token": "TOKEN_BOT_ANDA",
+  "allowed_chat_ids": ["CHAT_ID_ANDA"]
+}
+```
 
-Lihat [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Jangan commit config runtime. Contoh lengkap ada di [`RemotePC.config.example.json`](RemotePC.config.example.json).
 
 ## Menjalankan
 
@@ -88,48 +70,34 @@ Lihat [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
   %LOCALAPPDATA%\Programs\RemotePCPro\remotepc_pro.py
 ```
 
-Cek versi:
+Perintah Telegram:
+
+```text
+/start
+/help
+/status
+/dashboard
+/lock
+/restart confirm
+/shutdown confirm
+```
+
+CLI:
 
 ```powershell
 python remotepc_pro.py --version
+python remotepc_pro.py --diagnostics
+python remotepc_pro.py --no-dashboard
 ```
 
-## Struktur repository
+## Dokumentasi
 
-```text
-remotepc-pro/
-├─ .github/
-│  ├─ ISSUE_TEMPLATE/
-│  ├─ workflows/ci.yml
-│  └─ pull_request_template.md
-├─ assets/screenshots/
-├─ docs/
-├─ scripts/
-├─ remotepc_pro.py
-├─ RemotePC.config.example.json
-├─ install.ps1
-├─ uninstall.ps1
-├─ requirements.txt
-├─ VERSION
-├─ CHANGELOG.md
-├─ SECURITY.md
-├─ CONTRIBUTING.md
-├─ LICENSE
-└─ README.md
-```
-
-## Keamanan
-
-Repository tidak menyertakan token Telegram, Chat ID pribadi, secret key, config runtime, log, rekaman, screenshot, maupun binary pihak ketiga.
-
-Untuk laporan kerentanan dan model keamanan, baca:
-- [SECURITY.md](SECURITY.md)
-- [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)
-
-## Batasan
-
-RemotePC Pro bekerja pada sesi user Windows dan hak akses proses yang menjalankannya. Administrator Windows tetap dapat menghentikan program atau mengubah konfigurasi. Beberapa tindakan sistem membutuhkan privilege yang sesuai.
+- [Installation](docs/INSTALLATION.md)
+- [Configuration](docs/CONFIGURATION.md)
+- [Security Model](docs/SECURITY_MODEL.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Security Policy](SECURITY.md)
 
 ## License
 
-BASKA-PRO PERSONAL USE LICENSE Version 1.0. Penggunaan personal/private/non-commercial diperbolehkan sesuai ketentuan LICENSE; redistribusi, rebranding, SaaS, dan penggunaan komersial memerlukan izin tertulis.
+BASKA-PRO PERSONAL USE LICENSE Version 1.0. Penggunaan personal/private/non-commercial diperbolehkan sesuai `LICENSE`; redistribusi, rebranding, SaaS, dan penggunaan komersial memerlukan izin tertulis.
