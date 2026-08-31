@@ -12,9 +12,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: windows-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -36,11 +41,15 @@ jobs:
             "remotepc_pro.py",
             "requirements.txt",
             "RemotePC.config.example.json",
+            "install.ps1",
+            "uninstall.ps1",
+            "scripts/check_release.py",
             "VERSION",
             "README.md",
             "README.en.md",
             "CHANGELOG.md",
             "SECURITY.md",
+            "CONTRIBUTING.md",
             "LICENSE"
           )
           foreach ($file in $required) {
@@ -48,14 +57,11 @@ jobs:
               throw "Required file missing: $file"
             }
           }
-          if (-not (Test-Path -LiteralPath "src/remotepc_pro" -PathType Container)) {
-            throw "Implementation source directory missing: src/remotepc_pro"
-          }
 
       - name: Python syntax
         run: python -m py_compile remotepc_pro.py scripts/check_release.py
 
-      - name: Release validation
+      - name: Release and security validation
         run: python scripts/check_release.py
 
       - name: CLI version
@@ -80,7 +86,7 @@ jobs:
               [ref]$errors
             ) | Out-Null
             if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error "$file: $($_.Message)" }
+              $errors | ForEach-Object { Write-Error ("{0}: {1}" -f $file, $_.Message) }
               $failed = $true
             }
           }
@@ -94,7 +100,6 @@ jobs:
             echo "::error::Generated files are tracked."
             exit 1
           fi
-
           if git ls-files | grep -E '(^|/)(RemotePC\.config\.json|\.env|state\.json|.*\.log)$'; then
             echo "::error::Runtime/private file is tracked."
             exit 1
@@ -105,27 +110,16 @@ jobs:
         run: |
           python - <<'PY'
           import pathlib, re, subprocess, sys
-
-          token_re = re.compile(
-              rb'(?<![A-Za-z0-9_-])[0-9]{8,12}:[A-Za-z0-9_-]{30,}(?![A-Za-z0-9_-])'
-          )
-
-          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          token_re = re.compile(rb'(?<![A-Za-z0-9_-])[0-9]{8,12}:[A-Za-z0-9_-]{30,}(?![A-Za-z0-9_-])')
           findings = []
-
-          for raw in tracked:
+          for raw in subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0"):
               if not raw:
                   continue
               path = pathlib.Path(raw.decode())
-              if not path.is_file():
-                  continue
-              data = path.read_bytes()
-              if token_re.search(data):
+              if path.is_file() and token_re.search(path.read_bytes()):
                   findings.append(str(path))
-
           if findings:
               print("Potential Telegram credential found in:", ", ".join(findings))
               sys.exit(1)
-
           print("No Telegram credential pattern detected.")
           PY
