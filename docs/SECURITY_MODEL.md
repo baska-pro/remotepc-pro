@@ -1,19 +1,19 @@
 # Security Model
 
-RemotePC Pro is an authenticated remote-administration utility, not a security boundary.
+RemotePC Pro is an authenticated owner-only administration utility, not a Windows security boundary.
 
 ## Authentication
 
-Telegram access is limited by an allowlist. The dashboard requires an allowed Chat ID and a short-lived OTP delivered through Telegram. The application also uses CSRF checks and rate limiting.
+Telegram commands are limited to configured Chat IDs. Dashboard login requires an allowed Chat ID and a short-lived OTP delivered through Telegram. The dashboard also applies CSRF checks, rate limiting, secure session settings, and response security headers.
 
-## Public exposure
+## Network exposure
 
-Default repository configuration binds the dashboard to localhost. Direct public-internet exposure is not recommended.
+The default dashboard address is `127.0.0.1`. Direct public-internet exposure is not recommended. Use a private network/VPN or a correctly configured TLS reverse proxy if remote browser access is required.
 
-## Elevated features
+## Public capability surface
 
-Some code paths can perform powerful administration actions. The public package keeps advanced commands and the web file manager disabled by default. Enabling sensitive features should be an explicit local decision on a machine you are authorized to administer.
+The public edition is deliberately limited to telemetry plus Windows lock, restart, and shutdown. It does not include arbitrary command execution, remote file browsing/transfer, screenshot/webcam/audio capture, keyboard/mouse injection, credential collection, or hidden persistence.
 
 ## Local privilege
 
-Actions execute with the Windows privileges of the running process. Windows administrators can stop the application, alter its files, or remove local startup configuration.
+Actions execute with the privileges of the Windows account running RemotePC Pro. Windows administrators can stop or modify the application. This project does not attempt to bypass Windows security controls.
