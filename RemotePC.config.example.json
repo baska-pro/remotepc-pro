@@ -5,27 +5,14 @@
     "enabled": true,
     "host": "127.0.0.1",
     "port": 8765,
-    "public_base_url": "",
-    "session_hours": 12,
+    "session_hours": 8,
     "otp_expire_seconds": 300,
     "secure_cookie": false,
     "trust_proxy_headers": false
   },
-  "paths": {
-    "ffmpeg": "",
-    "nircmd": "",
-    "lock_script": "lockscreen.ps1",
-    "maintenance_script": "Maintenance.py"
-  },
   "features": {
-    "advanced_commands": false,
-    "web_file_manager": false,
-    "auto_send_startup_message": true,
-    "max_upload_mb": 100,
-    "max_record_seconds": 600,
-    "clean_temp_min_age_minutes": 30
+    "power_controls": true,
+    "startup_message": true
   },
-  "webcam_device": "",
-  "startup_task_name": "RemotePC Pro",
   "secret_key": ""
 }
