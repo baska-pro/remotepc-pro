@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Validate release structure
+        shell: pwsh
+        run: |
+          $required = @(
+            "remotepc_pro.py",
+            "requirements.txt",
+            "RemotePC.config.example.json",
+            "VERSION",
+            "README.md",
+            "README.en.md",
+            "CHANGELOG.md",
+            "SECURITY.md",
+            "LICENSE"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "Required file missing: $file"
+            }
+          }
+          if (-not (Test-Path -LiteralPath "src/remotepc_pro" -PathType Container)) {
+            throw "Implementation source directory missing: src/remotepc_pro"
+          }
+
+      - name: Python syntax
+        run: python -m py_compile remotepc_pro.py scripts/check_release.py
+
+      - name: Release validation
+        run: python scripts/check_release.py
+
+      - name: CLI version
+        shell: pwsh
+        run: |
+          $expected = (Get-Content -Raw VERSION).Trim()
+          $actual = (python remotepc_pro.py --version).Trim()
+          if ($expected -ne $actual) {
+            throw "Version mismatch: VERSION=$expected script=$actual"
+          }
+
+      - name: PowerShell syntax
+        shell: powershell
+        run: |
+          $failed = $false
+          foreach ($file in @("install.ps1", "uninstall.ps1")) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$file: $($_.Message)" }
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)(__pycache__|\.venv|venv|dist|build)(/|$)|\.py[co]$'; then
+            echo "::error::Generated files are tracked."
+            exit 1
+          fi
+
+          if git ls-files | grep -E '(^|/)(RemotePC\.config\.json|\.env|state\.json|.*\.log)$'; then
+            echo "::error::Runtime/private file is tracked."
+            exit 1
+          fi
+
+      - name: Telegram credential hygiene
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib, re, subprocess, sys
+
+          token_re = re.compile(
+              rb'(?<![A-Za-z0-9_-])[0-9]{8,12}:[A-Za-z0-9_-]{30,}(?![A-Za-z0-9_-])'
+          )
+
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          findings = []
+
+          for raw in tracked:
+              if not raw:
+                  continue
+              path = pathlib.Path(raw.decode())
+              if not path.is_file():
+                  continue
+              data = path.read_bytes()
+              if token_re.search(data):
+                  findings.append(str(path))
+
+          if findings:
+              print("Potential Telegram credential found in:", ", ".join(findings))
+              sys.exit(1)
+
+          print("No Telegram credential pattern detected.")
+          PY
