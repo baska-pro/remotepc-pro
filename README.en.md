@@ -5,46 +5,32 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4?style=flat-square)](#requirements)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square)](#requirements)
 
-**RemotePC Pro v2.0.0** is an administration utility for Windows PCs you own or are explicitly authorized to manage. It combines an allowlisted Telegram bot with a web dashboard authenticated by Telegram-delivered OTP.
+**RemotePC Pro v2.0.0** is an owner-only Windows monitoring utility with Telegram control and a web dashboard authenticated by an allowlisted Chat ID and Telegram OTP.
 
-> Use only on systems you own or administer with explicit authorization. This project is not a Windows security boundary and does not replace RDP, WDAC, Group Policy, VPNs, or enterprise endpoint management.
+> Use only on systems you own or explicitly administer. RemotePC Pro is not a replacement for RDP, VPNs, WDAC, Group Policy, or enterprise endpoint management.
 
 ## Highlights
 
 - Telegram Chat ID allowlist.
-- Web dashboard with Chat ID + Telegram OTP authentication.
-- CSRF protection, rate limiting, hardened response headers, and session controls.
-- CPU, memory, disk, battery, network, uptime, and process status.
-- Windows power/audio/local utility controls.
-- Optional elevated administration functions for installations that explicitly enable them.
-- Rotating logs and single-instance protection.
-- Optional FFmpeg/NirCmd integration.
-- Task Scheduler support is explicit/manual; the repository installer does not silently enable startup.
+- Web dashboard with Telegram-delivered OTP.
+- CSRF protection, rate limiting, secure session controls, and response security headers.
+- CPU, memory, disk, hostname, and uptime monitoring.
+- Limited Windows controls: lock, restart, and shutdown.
+- Telegram restart/shutdown require `confirm`; the dashboard requires browser confirmation.
+- Dashboard binds to `127.0.0.1` by default.
 - Runtime configuration is stored under `%LOCALAPPDATA%\RemotePCPro`.
+- The installer creates no Scheduled Task or hidden startup entry.
+- CI validates syntax, versions, credential hygiene, repository hygiene, and the public capability surface.
 
-## Safer public defaults
+## Intentionally excluded
 
-The repository package uses conservative defaults:
-
-```json
-{
-  "dashboard": {"host": "127.0.0.1"},
-  "features": {
-    "advanced_commands": false,
-    "web_file_manager": false
-  }
-}
-```
-
-Do not expose the dashboard directly to the public internet. Prefer a private network/VPN, or a properly secured TLS reverse proxy.
+The public edition does **not** include arbitrary shell/command execution, file browsing/transfer, screenshot/webcam/audio capture, keyboard/mouse injection, credential collection, or hidden persistence.
 
 ## Requirements
 
 - Windows 10/11
 - Python 3.11+
-- Telegram bot when Telegram control is enabled
-- FFmpeg only for media features that require it
-- NirCmd optional
+- A Telegram bot for Telegram control and dashboard OTP
 
 ## Install
 
@@ -54,13 +40,23 @@ cd remotepc-pro
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-See [docs/INSTALLATION.md](docs/INSTALLATION.md) and [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Edit `%LOCALAPPDATA%\RemotePCPro\RemotePC.config.json`, then start the installed application. See [docs/INSTALLATION.md](docs/INSTALLATION.md) and [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+## Telegram commands
+
+```text
+/start
+/help
+/status
+/dashboard
+/lock
+/restart confirm
+/shutdown confirm
+```
 
 ## Security
 
-No Telegram token, personal Chat ID, secret key, runtime configuration, log, recording, screenshot, or third-party binary belongs in Git.
-
-See [SECURITY.md](SECURITY.md) and [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
+Never commit Telegram tokens, Chat IDs, runtime configuration, logs, or other private data. See [SECURITY.md](SECURITY.md) and [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
 
 ## License
 
