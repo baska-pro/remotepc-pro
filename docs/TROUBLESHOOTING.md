@@ -2,25 +2,26 @@
 
 ## Bot does not start
 
-Check that the runtime config contains a valid Telegram token and at least one allowed Chat ID.
+Confirm `%LOCALAPPDATA%\RemotePCPro\RemotePC.config.json` contains a valid `bot_token` and at least one `allowed_chat_ids` entry. Also verify internet access to Telegram.
 
-## Dashboard is not reachable
+## Dashboard is not reachable from another device
 
-The public package binds to `127.0.0.1` by default. Open it from the same PC unless you deliberately configure a private network/reverse proxy.
+This is expected with the default `127.0.0.1` bind address. The public edition is localhost-only by default. Do not change this merely to expose the service directly to the internet; use a secured private network/VPN or TLS reverse proxy.
 
-## FFmpeg features fail
+## OTP is not received
 
-FFmpeg is optional and not bundled. Configure `paths.ffmpeg` or add FFmpeg to PATH.
+Check the bot token, allowed Chat ID, Telegram connectivity, and rate limits. Wait several minutes after repeated OTP requests.
 
-## Permission denied
+## Lock/restart/shutdown fails
 
-RemotePC Pro uses the privileges of the Windows account that launched it. Some system actions require additional Windows permissions.
+RemotePC Pro uses the permissions of the Windows account running it. Confirm the account may perform the requested action. Telegram restart/shutdown also require the literal `confirm` argument.
 
 ## CI fails
 
-Run:
+Run locally:
 
 ```powershell
-python -m py_compile remotepc_pro.py
+python -m py_compile remotepc_pro.py scripts\check_release.py
 python scripts\check_release.py
+python remotepc_pro.py --version
 ```
