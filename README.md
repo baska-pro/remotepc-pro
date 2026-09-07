@@ -1,3 +1,9 @@
+<!-- repo-banner:start -->
+<p align="center">
+  <img src="./assets/banner.webp" alt="Remotepc Pro banner" width="100%">
+</p>
+<!-- repo-banner:end -->
+
 # RemotePC Pro
 
 [![CI](https://github.com/baska-pro/remotepc-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/baska-pro/remotepc-pro/actions/workflows/ci.yml)
