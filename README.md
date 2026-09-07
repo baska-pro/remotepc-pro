@@ -1,6 +1,6 @@
 <!-- repo-banner:start -->
 <p align="center">
-  <img src="./assets/banner.webp" alt="Remotepc Pro banner" width="100%">
+  <img src="./assets/banner.png" alt="RemotePC Pro Banner" width="100%">
 </p>
 <!-- repo-banner:end -->
 
